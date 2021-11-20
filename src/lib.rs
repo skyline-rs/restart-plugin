@@ -1,30 +1,37 @@
-#![feature(proc_macro_hygiene)]
+use std::io::Read;
+use std::net::TcpListener;
 
-use skyline::{hook, install_hook};
+use skyline::nn;
 
-extern "C" fn test() -> u32 {
-    2
+const RESTART_PORT: u16 = 45423;
+
+fn check_for_restart(tid: u64) -> std::io::Result<()> {
+    let listener = TcpListener::bind(("0.0.0.0", RESTART_PORT))?;
+
+    // accept connections and process them serially
+    for stream in listener.incoming() {
+        let mut stream = stream?;
+        let mut buffer = [0u8; 8];
+
+        stream.read(&mut buffer);
+
+        if u64::from_be_bytes(buffer) == tid {
+            unsafe {
+                nn::oe::RequestToRelaunchApplication();
+            }
+        }
+    }
+
+    Ok(())
 }
 
-#[hook(replace = test)]
-fn test_replacement() -> u32 {
-
-    let original_test = original!();
-
-    let val = original_test();
-
-    println!("[override] original value: {}", val); // 2
-
-    val + 1
-}
-
-#[skyline::main(name = "skyline_rs_template")]
+#[skyline::main(name = "restart")]
 pub fn main() {
-    println!("Hello from Skyline Rust Plugin!");
+    std::thread::spawn(|| {
+        let title_id = skyline::info::get_program_id();
 
-    install_hook!(test_replacement);
-
-    let x = test();
-
-    println!("[main] test returned: {}", x); // 3
+        loop {
+            check_for_restart(title_id);
+        }
+    });
 }
