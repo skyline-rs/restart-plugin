@@ -13,7 +13,7 @@ fn check_for_restart(tid: u64) -> std::io::Result<()> {
         let mut stream = stream?;
         let mut buffer = [0u8; 8];
 
-        stream.read(&mut buffer);
+        stream.read_exact(&mut buffer);
 
         if u64::from_be_bytes(buffer) == tid {
             unsafe {
@@ -35,3 +35,4 @@ pub fn main() {
         }
     });
 }
+
